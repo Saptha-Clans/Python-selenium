@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <style>body {
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 12px;
+	/* do not increase min-width as some may use split screens */
+	min-width: 800px;
+	color: #999;
+}
+
+h1 {
+	font-size: 24px;
+	color: black;
+}
+
+h2 {
+	font-size: 16px;
+	color: black;
+}
+
+p {
+    color: black;
+}
+
+a {
+	color: #999;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+/******************************
+ * SUMMARY INFORMATION
+ ******************************/
+
+#environment td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+}
+
+#environment tr:nth-child(odd) {
+	background-color: #f6f6f6;
+}
+
+/******************************
+ * TEST RESULT COLORS
+ ******************************/
+span.passed, .passed .col-result {
+	color: green;
+}
+span.skipped, span.xfailed, span.rerun, .skipped .col-result, .xfailed .col-result, .rerun .col-result {
+	color: orange;
+}
+span.error, span.failed, span.xpassed, .error .col-result, .failed .col-result, .xpassed .col-result  {
+	color: red;
+}
+
+
+/******************************
+ * RESULTS TABLE
+ *
+ * 1. Table Layout
+ * 2. Extra
+ * 3. Sorting items
+ *
+ ******************************/
+
+/*------------------
+ * 1. Table Layout
+ *------------------*/
+
+#results-table {
+	border: 1px solid #e6e6e6;
+	color: #999;
+	font-size: 12px;
+	width: 100%
+}
+
+#results-table th, #results-table td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+	text-align: left
+}
+#results-table th {
+	font-weight: bold
+}
+
+/*------------------
+ * 2. Extra
+ *------------------*/
+
+.log:only-child {
+	height: inherit
+}
+.log {
+	background-color: #e6e6e6;
+	border: 1px solid #e6e6e6;
+	color: black;
+	display: block;
+	font-family: "Courier New", Courier, monospace;
+	height: 230px;
+	overflow-y: scroll;
+	padding: 5px;
+	white-space: pre-wrap
+}
+div.image {
+	border: 1px solid #e6e6e6;
+	float: right;
+	height: 240px;
+	margin-left: 5px;
+	overflow: hidden;
+	width: 320px
+}
+div.image img {
+	width: 320px
+}
+div.video {
+	border: 1px solid #e6e6e6;
+	float: right;
+	height: 240px;
+	margin-left: 5px;
+	overflow: hidden;
+	width: 320px
+}
+div.video video {
+	overflow: hidden;
+	width: 320px;
+    height: 240px;
+}
+.collapsed {
+	display: none;
+}
+.expander::after {
+	content: " (show details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+.collapser::after {
+	content: " (hide details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+
+/*------------------
+ * 3. Sorting items
+ *------------------*/
+.sortable {
+	cursor: pointer;
+}
+
+.sort-icon {
+	font-size: 0px;
+	float: left;
+	margin-right: 5px;
+	margin-top: 5px;
+	/*triangle*/
+	width: 0;
+	height: 0;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+}
+
+.inactive .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #E6E6E6;
+}
+
+.asc.active .sort-icon {
+	/*finish triangle*/
+	border-bottom: 8px solid #999;
+}
+
+.desc.active .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #999;
+}
+</style></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var collapsed = get_query_parameter('collapsed') || 'Passed';
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (extras.classList.contains("collapsed")) {
+            expandcollapse.classList.add("expander")
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function get_query_parameter(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    sort_column(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+
+        if (key_a == key_b) return 0;
+
+        if (reversed) {
+            return (key_a < key_b ? 1 : -1);
+        } else {
+            return (key_a > key_b ? 1 : -1);
+        }
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <h1>bulk_payment_27_march.html</h1>
+    <p>Report generated on 27-Mar-2020 at 15:23:12 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v2.1.0</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Base URL</td>
+        <td></td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.8.1", "pytest": "5.4.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Darwin-17.7.0-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"base-url": "1.4.1", "forked": "1.1.3", "harvest": "1.9.0", "html": "2.1.0", "json-report": "1.2.1", "metadata": "1.8.0", "rerunfailures": "8.0", "xdist": "1.31.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.7.3</td></tr></table>
+    <h2>Summary</h2>
+    <p>0 tests ran in 332.26 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">0 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">2 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="rerun">1 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">api-automation-repo/src/tests/api/loan_tape_entry_test.py::collect</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">ImportError while importing test module &#x27;/Users/Sapthagiri/Workspace/Automation repo/api-automation-repo/src/tests/api/loan_tape_entry_test.py&#x27;.<br/>Hint: make sure your test modules/packages have valid Python names.<br/>Traceback:<br/>api-automation-repo/src/tests/api/loan_tape_entry_test.py:10: in &lt;module&gt;<br/>    from dateutil.parser import parse as parse_date<br/><span class="error">E   ModuleNotFoundError: No module named &#x27;dateutil&#x27;</span><br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">api-automation-repo/src/tests/web/platform_admin/loan_tape_entry_test.py::collect</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">ImportError while importing test module &#x27;/Users/Sapthagiri/Workspace/Automation repo/api-automation-repo/src/tests/web/platform_admin/loan_tape_entry_test.py&#x27;.<br/>Hint: make sure your test modules/packages have valid Python names.<br/>Traceback:<br/>api-automation-repo/src/tests/web/platform_admin/loan_tape_entry_test.py:1: in &lt;module&gt;<br/>    from pytz import timezone<br/><span class="error">E   ModuleNotFoundError: No module named &#x27;pytz&#x27;</span><br/></div></td></tr></tbody>
+      <tbody class="rerun results-table-row">
+        <tr>
+          <td class="col-result">Rerun</td>
+          <td class="col-name">api-automation-repo/src/tests/web/platform_admin/bulk_payment_test.py::BulkPaymentTest::test_bulk_payment_in_statement</td>
+          <td class="col-duration">328.93</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="file:/Users/Sapthagiri/Workspace/Automation repo/screenshots//api-automation-repo.src.tests.web.platform_admin.bulk_payment_test.BulkPaymentTest.test_bulk_payment_in_statement.png" alt="screenshot" style="width:600px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">[gw0] darwin -- Python 3.7.3 /Users/Sapthagiri/Workspace/venv/bin/python<br/><br/>self = &lt;src.tests.web.platform_admin.bulk_payment_test.BulkPaymentTest testMethod=test_bulk_payment_in_statement&gt;<br/><br/>    def test_bulk_payment_in_statement(self):<br/>        utils_helper = UtilsHelper()<br/>        earnings = utils_helper.get_add_earning_details()<br/>        user_helper = UserHelper()<br/>        platform_helper = PlatformHelper()<br/>        user = utils_helper.get_new_user()<br/>        account = utils_helper.get_bank_accounts_details()<br/>        contractor = utils_helper.get_new_contractor()<br/>        url = None<br/>        document = utils_helper.get_upload_documnets()<br/>        admin_signup_helper = AdminSigninHelper()<br/>        membership_helper = MembershipsHelper()<br/>        add_earnings_helper = AddEarningsHelper()<br/>        platform_admin_login_helper = PlatformAdminLoginHelper()<br/>        add_contractor_helper = AddContractorHelper()<br/>        bulk_payment_helper = BulkPaymentHelper()<br/>        signup_helper = SignupHelper()<br/>    <br/>        utils_helper = UtilsHelper()<br/>        user_helper = UserHelper()<br/>        platform_helper = PlatformHelper()<br/>        risk_survey_helper = RiskSurveyHelper()<br/>        risk_survey = utils_helper.get_risk_survey_details()<br/>        admin_signup_helper = AdminSigninHelper()<br/>    <br/>        # Step1: Create user<br/>        response = user_helper.create_user(user=user, url=url, nonDemoUser=True)<br/>        user_pk = response[&quot;url&quot;].split(&quot;/&quot;)[-2]<br/>        platform_user = response[&quot;email&quot;]<br/>        assert user_pk is not None<br/>        assert user is not None<br/>    <br/>        # Step2: Create New Platform_A for User<br/>        response = user_helper.create_new_platform_with_user_id(<br/>            email=platform_user,<br/>            password=utils_helper.get_default_password(),<br/>            user_pk=user_pk,<br/>            user=user,<br/>            url=url,<br/>            expected=HTTPStatus.CREATED,<br/>        )<br/>        platform_id = response[&quot;url&quot;].split(&quot;/&quot;)[-2]<br/>        platform_name = response[&quot;name&quot;]<br/>        assert platform_id is not None<br/>    <br/>        # Get Platform Risk Survey<br/>        response = platform_helper.get_platform_risk_survey(<br/>            email=platform_user,<br/>            password=utils_helper.get_default_password(),<br/>            platform_pk=platform_id,<br/>            url=url,<br/>            expected=HTTPStatus.OK,<br/>        )<br/>        risk_survey_id = response[0][&quot;url&quot;].split(&quot;/&quot;)[-2]<br/>        assert risk_survey_id is not None<br/>    <br/>        # Partial Update Risk Survey<br/>        risk_survey_helper.partial_update_of_risk_surveys(<br/>            email=platform_user,<br/>            password=utils_helper.get_default_password(),<br/>            risk_survey_id=risk_survey_id,<br/>            risk_survey=risk_survey,<br/>            url=url,<br/>            expected=HTTPStatus.OK,<br/>        )<br/>    <br/>        risk_survey_helper.create_risk_survey_bank_statement(<br/>            email=platform_user,<br/>            password=utils_helper.get_default_password(),<br/>            risk_survey_id=risk_survey_id,<br/>            url=url,<br/>            bank_statement=document[&quot;upload_document&quot;][&quot;bank_statement&quot;],<br/>        )<br/>    <br/>        # Step3: Link accounts for the Platform A<br/>        platform_helper.link_bank_account_for_platform(<br/>            email=platform_user,<br/>            password=utils_helper.get_default_password(),<br/>            platform_pk=platform_id,<br/>            account_details=account,<br/>            url=url,<br/>            expected=HTTPStatus.CREATED,<br/>        )<br/>    <br/>        # step5: Activate platform<br/>    <br/>        admin_signup_helper.login_as_qwil_admin_and_activate_platform(<br/>            platform_name, url=url, expecting_activate_message=True<br/>        )<br/>    <br/>        # Step4: Add Contractors to Platform and Signup as contractor<br/>        response = platform_helper.add_contractor_to_platform(<br/>            platform_pk=platform_id,<br/>            email=&quot;preethika+01@qwil.com&quot;,<br/>            url=url,<br/>            contractor_dict=contractor,<br/>            expected=HTTPStatus.CREATED,<br/>        )<br/>        user_pk = response[&quot;url&quot;].split(&quot;/&quot;)[-2]<br/>        first_email = response[&quot;email&quot;]<br/>        assert user_pk is not None<br/>    <br/>        second_user = utils_helper.get_new_contractor()<br/>    <br/>        response = platform_helper.add_contractor_to_platform(<br/>            platform_pk=platform_id,<br/>            email=&quot;preethika+02@qwil.com&quot;,<br/>            url=url,<br/>            contractor_dict=second_user,<br/>            expected=HTTPStatus.CREATED,<br/>        )<br/>        user_pk = response[&quot;url&quot;].split(&quot;/&quot;)[-2]<br/>        second_email = response[&quot;email&quot;]<br/>        assert user_pk is not None<br/>    <br/>        third_user = utils_helper.get_new_contractor()<br/>    <br/>        response = platform_helper.add_contractor_to_platform(<br/>            platform_pk=platform_id,<br/>            email=&quot;preethika+03@qwil.com&quot;,<br/>            url=url,<br/>            contractor_dict=third_user,<br/>            expected=HTTPStatus.CREATED,<br/>        )<br/>        user_pk = response[&quot;url&quot;].split(&quot;/&quot;)[-2]<br/>        third_email = response[&quot;email&quot;]<br/>        assert user_pk is not None<br/>    <br/>        #  Enable schedule Payment<br/>        add_earnings_helper.enable_schedule_payment_in_dev(email=user[&quot;email&quot;], url=url)<br/>    <br/>        platform_admin_login_helper.platform_admin_login(user=user, url=url)<br/>&gt;       signup_helper.enter_bank_account_information(user=user)<br/><br/>api-automation-repo/src/tests/web/platform_admin/bulk_payment_test.py:168: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>api-automation-repo/src/helpers/web/platform_admin/signup_helper.py:662: in enter_bank_account_information<br/>    self.enter_bank_name_input(user[&quot;bank_account_information&quot;][&quot;bank_name&quot;])<br/>api-automation-repo/src/helpers/web/platform_admin/signup_helper.py:614: in enter_bank_name_input<br/>    self.signup_page.type(self.signup_page.bank_name_input, bank_name_input)<br/>api-automation-repo/src/pages/base_page.py:165: in type<br/>    self.clear(selector, timeout=timeout)<br/>api-automation-repo/src/pages/base_page.py:144: in clear<br/>    element = self.find_element(selector, timeout)<br/>api-automation-repo/src/pages/base_page.py:56: in find_element<br/>    raise e<br/>api-automation-repo/src/pages/base_page.py:49: in find_element<br/>    ).until(expected_conditions.visibility_of_element_located(loc))<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.wait.WebDriverWait (session=&quot;1bc71f68f8ec5381bfd04b1be3d91016&quot;)&gt;<br/>method = &lt;selenium.webdriver.support.expected_conditions.visibility_of_element_located object at 0x10d464358&gt;, message = &#x27;&#x27;<br/><br/>    def until(self, method, message=&#x27;&#x27;):<br/>        &quot;&quot;&quot;Calls the method provided with the driver as an argument until the \<br/>        return value is not False.&quot;&quot;&quot;<br/>        screen = None<br/>        stacktrace = None<br/>    <br/>        end_time = time.time() + self._timeout<br/>        while True:<br/>            try:<br/>                value = method(self._driver)<br/>                if value:<br/>                    return value<br/>            except self._ignored_exceptions as exc:<br/>                screen = getattr(exc, &#x27;screen&#x27;, None)<br/>                stacktrace = getattr(exc, &#x27;stacktrace&#x27;, None)<br/>            time.sleep(self._poll)<br/>            if time.time() &gt; end_time:<br/>                break<br/>&gt;       raise TimeoutException(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.TimeoutException: Message:</span><br/><br/>../venv/lib/python3.7/site-packages/selenium/webdriver/support/wait.py:80: TimeoutException<br/> ------------------------------Captured stdout call------------------------------ <br/>https://staging.qwil.co/admin/user/platformconfigadminmodel/?q=fdqlreurlw+Inc
+https://staging.qwil.co/admin/user/platformconfigadminmodel/?q=fdqlreurlw+Inc
+https://staging.qwil.co/admin/user/platformconfigadminmodel/?q=fdqlreurlw+Inc
+301161
+<br/> ------------------------------Captured stderr call------------------------------ <br/>INFO:src.tests.web.platform_admin.bulk_payment_test:STG
+INFO:src.tests.web.platform_admin.bulk_payment_test:{&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO:src.tests.web.platform_admin.bulk_payment_test:Desktop Test Target
+INFO:src.helpers.utils.utils_helper:/Users/Sapthagiri/Workspace/Automation repo
+INFO:src.helpers.utils.utils_helper:/Users/Sapthagiri/Workspace/Automation repo
+INFO:src.helpers.utils.utils_helper:directory: /Users/Sapthagiri/Workspace/Automation repo/src/test_data/w9-tax-form.pdf
+INFO:src.helpers.utils.utils_helper:/Users/Sapthagiri/Workspace/Automation repo
+INFO:src.helpers.utils.utils_helper:directory: /Users/Sapthagiri/Workspace/Automation repo/src/test_data/article.pdf
+INFO:src.helpers.utils.utils_helper:/Users/Sapthagiri/Workspace/Automation repo
+INFO:src.helpers.utils.utils_helper:directory: /Users/Sapthagiri/Workspace/Automation repo/src/test_data/bank_statement.jpg
+INFO:src.helpers.utils.utils_helper:/Users/Sapthagiri/Workspace/Automation repo
+INFO:src.helpers.utils.utils_helper:directory: /Users/Sapthagiri/Workspace/Automation repo/src/test_data/pdf_file_with_more_than_5_mb.pdf
+INFO:src.helpers.api.user_helper:create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/704290/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_kbdzlyebyq@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;9217f9e7-8686-4387-9875-ba722f4abe5a&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/704290/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/704290/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/704290/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/704290/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/704290/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/704290/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/704290/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/704290/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/704290/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;PENDING&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-03-27T09:47:47.104296Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/704290/cashout_available/&#x27;}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.user_helper:create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/301161/&#x27;, &#x27;name&#x27;: &#x27;fdqlreurlw Inc&#x27;, &#x27;company_information&#x27;: {&#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_kbdzlyebyq@qwil-team.m8r.co&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;business_name&#x27;: &#x27;fdqlreurlw Inc&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;}}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.OK response:200
+INFO:src.helpers.api.platform_helper:success: [{&#x27;url&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/&#x27;, &#x27;user&#x27;: None, &#x27;platform&#x27;: &#x27;https://staging.qwil.co/platforms/301161/&#x27;, &#x27;status&#x27;: &#x27;REQUESTED&#x27;, &#x27;status_description&#x27;: None, &#x27;estimated_monthly_payout_volume&#x27;: &#x27;0.00&#x27;, &#x27;estimated_number_of_monthly_payments&#x27;: 0, &#x27;monthly_revenue&#x27;: None, &#x27;monthly_cost_of_goods_sold&#x27;: None, &#x27;monthly_expenses&#x27;: None, &#x27;current_cash&#x27;: None, &#x27;current_debt&#x27;: None, &#x27;has_financial_statement&#x27;: False, &#x27;has_bank_statement&#x27;: False, &#x27;actions&#x27;: {&#x27;bank_statement&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/bank_statement/&#x27;, &#x27;financial_statement&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/financial_statement/&#x27;}}]
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.risk_survey_helper:expected: HTTPStatus.OK response:200
+INFO:src.helpers.api.risk_survey_helper:success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/&#x27;, &#x27;user&#x27;: None, &#x27;platform&#x27;: &#x27;https://staging.qwil.co/platforms/301161/&#x27;, &#x27;status&#x27;: &#x27;REQUESTED&#x27;, &#x27;status_description&#x27;: None, &#x27;estimated_monthly_payout_volume&#x27;: &#x27;100.00&#x27;, &#x27;estimated_number_of_monthly_payments&#x27;: 5, &#x27;monthly_revenue&#x27;: &#x27;10000.00&#x27;, &#x27;monthly_cost_of_goods_sold&#x27;: &#x27;20.00&#x27;, &#x27;monthly_expenses&#x27;: &#x27;5000.00&#x27;, &#x27;current_cash&#x27;: &#x27;8000.00&#x27;, &#x27;current_debt&#x27;: &#x27;100.00&#x27;, &#x27;has_financial_statement&#x27;: False, &#x27;has_bank_statement&#x27;: False, &#x27;actions&#x27;: {&#x27;bank_statement&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/bank_statement/&#x27;, &#x27;financial_statement&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/financial_statement/&#x27;}}
+INFO:src.helpers.api.auth_helper:200
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (26) couldn&#x27;t open file &quot;/Users/Sapthagiri/Workspace/Automation repo/src/test_data/bank_statement.jpg&quot;
+INFO:src.helpers.api.risk_survey_helper:(b&#x27;&#x27;, None)
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/327640/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/301161/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:add_contractor_to_platform success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/704295/&#x27;, &#x27;email&#x27;: &#x27;qwil_contractor_twzxbmhqbpp@qwil-team.m8r.co&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/704295/income/&#x27;, &#x27;name&#x27;: &#x27;Qwilizmbcvodqg Contractor&#x27;, &#x27;first_name&#x27;: &#x27;Qwilizmbcvodqg&#x27;, &#x27;last_name&#x27;: &#x27;Contractor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/704295/accounts/&#x27;, &#x27;default_account&#x27;: None, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/704295/cashouts/&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/704295/cashout_available/&#x27;, &#x27;has_password&#x27;: False, &#x27;is_payable&#x27;: False, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;created_timestamp&#x27;: &#x27;2020-03-27T09:51:01.887516Z&#x27;, &#x27;uuid&#x27;: &#x27;719ffaac-141f-4602-af81-2f98b0046651&#x27;, &#x27;external_id&#x27;: &#x27;nv01muy8-z3mn-f8zo-y2fs-tg5iw07jjaec&#x27;}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:add_contractor_to_platform success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/704296/&#x27;, &#x27;email&#x27;: &#x27;qwil_contractor_ywhdhhzmrsq@qwil-team.m8r.co&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/704296/income/&#x27;, &#x27;name&#x27;: &#x27;Qwilpjnccdcopr Contractor&#x27;, &#x27;first_name&#x27;: &#x27;Qwilpjnccdcopr&#x27;, &#x27;last_name&#x27;: &#x27;Contractor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/704296/accounts/&#x27;, &#x27;default_account&#x27;: None, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/704296/cashouts/&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/704296/cashout_available/&#x27;, &#x27;has_password&#x27;: False, &#x27;is_payable&#x27;: False, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;created_timestamp&#x27;: &#x27;2020-03-27T09:51:14.479078Z&#x27;, &#x27;uuid&#x27;: &#x27;88688a20-6099-4ba1-89cb-d4d0afc36431&#x27;, &#x27;external_id&#x27;: &#x27;lftjq4ag-5fl6-clss-rmwa-b0yvgjc9p99j&#x27;}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:add_contractor_to_platform success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/704297/&#x27;, &#x27;email&#x27;: &#x27;qwil_contractor_zuvywkcxnya@qwil-team.m8r.co&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/704297/income/&#x27;, &#x27;name&#x27;: &#x27;Qwilvohxxvmaps Contractor&#x27;, &#x27;first_name&#x27;: &#x27;Qwilvohxxvmaps&#x27;, &#x27;last_name&#x27;: &#x27;Contractor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/704297/accounts/&#x27;, &#x27;default_account&#x27;: None, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/704297/cashouts/&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/704297/cashout_available/&#x27;, &#x27;has_password&#x27;: False, &#x27;is_payable&#x27;: False, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;created_timestamp&#x27;: &#x27;2020-03-27T09:51:27.160977Z&#x27;, &#x27;uuid&#x27;: &#x27;d374788d-eab7-4b43-bcbf-5e1d244ece5b&#x27;, &#x27;external_id&#x27;: &#x27;qgxjcsed-3714-v4q3-2p21-p1n4599tajvl&#x27;}
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     src.tests.web.platform_admin.bulk_payment_test:base_test.py:26 STG
+INFO     src.tests.web.platform_admin.bulk_payment_test:base_test.py:32 {&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO     src.tests.web.platform_admin.bulk_payment_test:base_test.py:52 Desktop Test Target
+INFO     src.helpers.utils.utils_helper:utils_helper.py:164 /Users/Sapthagiri/Workspace/Automation repo
+INFO     src.helpers.utils.utils_helper:utils_helper.py:458 /Users/Sapthagiri/Workspace/Automation repo
+INFO     src.helpers.utils.utils_helper:utils_helper.py:471 directory: /Users/Sapthagiri/Workspace/Automation repo/src/test_data/w9-tax-form.pdf
+INFO     src.helpers.utils.utils_helper:utils_helper.py:458 /Users/Sapthagiri/Workspace/Automation repo
+INFO     src.helpers.utils.utils_helper:utils_helper.py:471 directory: /Users/Sapthagiri/Workspace/Automation repo/src/test_data/article.pdf
+INFO     src.helpers.utils.utils_helper:utils_helper.py:458 /Users/Sapthagiri/Workspace/Automation repo
+INFO     src.helpers.utils.utils_helper:utils_helper.py:471 directory: /Users/Sapthagiri/Workspace/Automation repo/src/test_data/bank_statement.jpg
+INFO     src.helpers.utils.utils_helper:utils_helper.py:458 /Users/Sapthagiri/Workspace/Automation repo
+INFO     src.helpers.utils.utils_helper:utils_helper.py:471 directory: /Users/Sapthagiri/Workspace/Automation repo/src/test_data/pdf_file_with_more_than_5_mb.pdf
+INFO     src.helpers.api.user_helper:user_helper.py:70 create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/704290/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_kbdzlyebyq@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;9217f9e7-8686-4387-9875-ba722f4abe5a&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/704290/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/704290/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/704290/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/704290/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/704290/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/704290/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/704290/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/704290/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/704290/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;PENDING&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-03-27T09:47:47.104296Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/704290/cashout_available/&#x27;}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.user_helper:user_helper.py:420 create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/301161/&#x27;, &#x27;name&#x27;: &#x27;fdqlreurlw Inc&#x27;, &#x27;company_information&#x27;: {&#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_kbdzlyebyq@qwil-team.m8r.co&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;business_name&#x27;: &#x27;fdqlreurlw Inc&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;}}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:1853 expected: HTTPStatus.OK response:200
+INFO     src.helpers.api.platform_helper:platform_helper.py:1862 success: [{&#x27;url&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/&#x27;, &#x27;user&#x27;: None, &#x27;platform&#x27;: &#x27;https://staging.qwil.co/platforms/301161/&#x27;, &#x27;status&#x27;: &#x27;REQUESTED&#x27;, &#x27;status_description&#x27;: None, &#x27;estimated_monthly_payout_volume&#x27;: &#x27;0.00&#x27;, &#x27;estimated_number_of_monthly_payments&#x27;: 0, &#x27;monthly_revenue&#x27;: None, &#x27;monthly_cost_of_goods_sold&#x27;: None, &#x27;monthly_expenses&#x27;: None, &#x27;current_cash&#x27;: None, &#x27;current_debt&#x27;: None, &#x27;has_financial_statement&#x27;: False, &#x27;has_bank_statement&#x27;: False, &#x27;actions&#x27;: {&#x27;bank_statement&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/bank_statement/&#x27;, &#x27;financial_statement&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/financial_statement/&#x27;}}]
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.risk_survey_helper:risk_survey_helper.py:104 expected: HTTPStatus.OK response:200
+INFO     src.helpers.api.risk_survey_helper:risk_survey_helper.py:113 success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/&#x27;, &#x27;user&#x27;: None, &#x27;platform&#x27;: &#x27;https://staging.qwil.co/platforms/301161/&#x27;, &#x27;status&#x27;: &#x27;REQUESTED&#x27;, &#x27;status_description&#x27;: None, &#x27;estimated_monthly_payout_volume&#x27;: &#x27;100.00&#x27;, &#x27;estimated_number_of_monthly_payments&#x27;: 5, &#x27;monthly_revenue&#x27;: &#x27;10000.00&#x27;, &#x27;monthly_cost_of_goods_sold&#x27;: &#x27;20.00&#x27;, &#x27;monthly_expenses&#x27;: &#x27;5000.00&#x27;, &#x27;current_cash&#x27;: &#x27;8000.00&#x27;, &#x27;current_debt&#x27;: &#x27;100.00&#x27;, &#x27;has_financial_statement&#x27;: False, &#x27;has_bank_statement&#x27;: False, &#x27;actions&#x27;: {&#x27;bank_statement&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/bank_statement/&#x27;, &#x27;financial_statement&#x27;: &#x27;https://staging.qwil.co/risk_surveys/283908/financial_statement/&#x27;}}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.risk_survey_helper:risk_survey_helper.py:220 (b&#x27;&#x27;, None)
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:63 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:72 success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/327640/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/301161/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:352 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:362 add_contractor_to_platform success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/704295/&#x27;, &#x27;email&#x27;: &#x27;qwil_contractor_twzxbmhqbpp@qwil-team.m8r.co&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/704295/income/&#x27;, &#x27;name&#x27;: &#x27;Qwilizmbcvodqg Contractor&#x27;, &#x27;first_name&#x27;: &#x27;Qwilizmbcvodqg&#x27;, &#x27;last_name&#x27;: &#x27;Contractor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/704295/accounts/&#x27;, &#x27;default_account&#x27;: None, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/704295/cashouts/&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/704295/cashout_available/&#x27;, &#x27;has_password&#x27;: False, &#x27;is_payable&#x27;: False, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;created_timestamp&#x27;: &#x27;2020-03-27T09:51:01.887516Z&#x27;, &#x27;uuid&#x27;: &#x27;719ffaac-141f-4602-af81-2f98b0046651&#x27;, &#x27;external_id&#x27;: &#x27;nv01muy8-z3mn-f8zo-y2fs-tg5iw07jjaec&#x27;}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:352 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:362 add_contractor_to_platform success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/704296/&#x27;, &#x27;email&#x27;: &#x27;qwil_contractor_ywhdhhzmrsq@qwil-team.m8r.co&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/704296/income/&#x27;, &#x27;name&#x27;: &#x27;Qwilpjnccdcopr Contractor&#x27;, &#x27;first_name&#x27;: &#x27;Qwilpjnccdcopr&#x27;, &#x27;last_name&#x27;: &#x27;Contractor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/704296/accounts/&#x27;, &#x27;default_account&#x27;: None, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/704296/cashouts/&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/704296/cashout_available/&#x27;, &#x27;has_password&#x27;: False, &#x27;is_payable&#x27;: False, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;created_timestamp&#x27;: &#x27;2020-03-27T09:51:14.479078Z&#x27;, &#x27;uuid&#x27;: &#x27;88688a20-6099-4ba1-89cb-d4d0afc36431&#x27;, &#x27;external_id&#x27;: &#x27;lftjq4ag-5fl6-clss-rmwa-b0yvgjc9p99j&#x27;}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:352 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:362 add_contractor_to_platform success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/704297/&#x27;, &#x27;email&#x27;: &#x27;qwil_contractor_zuvywkcxnya@qwil-team.m8r.co&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/704297/income/&#x27;, &#x27;name&#x27;: &#x27;Qwilvohxxvmaps Contractor&#x27;, &#x27;first_name&#x27;: &#x27;Qwilvohxxvmaps&#x27;, &#x27;last_name&#x27;: &#x27;Contractor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/704297/accounts/&#x27;, &#x27;default_account&#x27;: None, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/704297/cashouts/&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/704297/cashout_available/&#x27;, &#x27;has_password&#x27;: False, &#x27;is_payable&#x27;: False, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;created_timestamp&#x27;: &#x27;2020-03-27T09:51:27.160977Z&#x27;, &#x27;uuid&#x27;: &#x27;d374788d-eab7-4b43-bcbf-5e1d244ece5b&#x27;, &#x27;external_id&#x27;: &#x27;qgxjcsed-3714-v4q3-2p21-p1n4599tajvl&#x27;}<br/></div></td></tr></tbody></table></body></html>

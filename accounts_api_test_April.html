@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <style>body {
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 12px;
+	/* do not increase min-width as some may use split screens */
+	min-width: 800px;
+	color: #999;
+}
+
+h1 {
+	font-size: 24px;
+	color: black;
+}
+
+h2 {
+	font-size: 16px;
+	color: black;
+}
+
+p {
+    color: black;
+}
+
+a {
+	color: #999;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+/******************************
+ * SUMMARY INFORMATION
+ ******************************/
+
+#environment td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+}
+
+#environment tr:nth-child(odd) {
+	background-color: #f6f6f6;
+}
+
+/******************************
+ * TEST RESULT COLORS
+ ******************************/
+span.passed, .passed .col-result {
+	color: green;
+}
+span.skipped, span.xfailed, span.rerun, .skipped .col-result, .xfailed .col-result, .rerun .col-result {
+	color: orange;
+}
+span.error, span.failed, span.xpassed, .error .col-result, .failed .col-result, .xpassed .col-result  {
+	color: red;
+}
+
+
+/******************************
+ * RESULTS TABLE
+ *
+ * 1. Table Layout
+ * 2. Extra
+ * 3. Sorting items
+ *
+ ******************************/
+
+/*------------------
+ * 1. Table Layout
+ *------------------*/
+
+#results-table {
+	border: 1px solid #e6e6e6;
+	color: #999;
+	font-size: 12px;
+	width: 100%
+}
+
+#results-table th, #results-table td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+	text-align: left
+}
+#results-table th {
+	font-weight: bold
+}
+
+/*------------------
+ * 2. Extra
+ *------------------*/
+
+.log:only-child {
+	height: inherit
+}
+.log {
+	background-color: #e6e6e6;
+	border: 1px solid #e6e6e6;
+	color: black;
+	display: block;
+	font-family: "Courier New", Courier, monospace;
+	height: 230px;
+	overflow-y: scroll;
+	padding: 5px;
+	white-space: pre-wrap
+}
+div.image {
+	border: 1px solid #e6e6e6;
+	float: right;
+	height: 240px;
+	margin-left: 5px;
+	overflow: hidden;
+	width: 320px
+}
+div.image img {
+	width: 320px
+}
+div.video {
+	border: 1px solid #e6e6e6;
+	float: right;
+	height: 240px;
+	margin-left: 5px;
+	overflow: hidden;
+	width: 320px
+}
+div.video video {
+	overflow: hidden;
+	width: 320px;
+    height: 240px;
+}
+.collapsed {
+	display: none;
+}
+.expander::after {
+	content: " (show details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+.collapser::after {
+	content: " (hide details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+
+/*------------------
+ * 3. Sorting items
+ *------------------*/
+.sortable {
+	cursor: pointer;
+}
+
+.sort-icon {
+	font-size: 0px;
+	float: left;
+	margin-right: 5px;
+	margin-top: 5px;
+	/*triangle*/
+	width: 0;
+	height: 0;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+}
+
+.inactive .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #E6E6E6;
+}
+
+.asc.active .sort-icon {
+	/*finish triangle*/
+	border-bottom: 8px solid #999;
+}
+
+.desc.active .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #999;
+}
+</style></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var collapsed = get_query_parameter('collapsed') || 'Passed';
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (extras.classList.contains("collapsed")) {
+            expandcollapse.classList.add("expander")
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function get_query_parameter(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    sort_column(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+
+        if (key_a == key_b) return 0;
+
+        if (reversed) {
+            return (key_a < key_b ? 1 : -1);
+        } else {
+            return (key_a > key_b ? 1 : -1);
+        }
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <h1>accounts_api_test_April.html</h1>
+    <p>Report generated on 01-Apr-2020 at 12:38:58 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v2.1.0</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Base URL</td>
+        <td></td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.8.1", "pytest": "5.4.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Darwin-17.7.0-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"base-url": "1.4.1", "forked": "1.1.3", "harvest": "1.9.0", "html": "2.1.0", "json-report": "1.2.1", "metadata": "1.8.0", "rerunfailures": "8.0", "xdist": "1.31.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.7.3</td></tr></table>
+    <h2>Summary</h2>
+    <p>6 tests ran in 88.69 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">6 passed</span>, <input checked="true" class="filter" data-test-result="skipped" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">2 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">2 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="rerun">0 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">api-automation-repo/src/tests/api/loan_tape_entry_test.py::collect</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">ImportError while importing test module &#x27;/Users/Sapthagiri/Workspace/Automation repo/api-automation-repo/src/tests/api/loan_tape_entry_test.py&#x27;.<br/>Hint: make sure your test modules/packages have valid Python names.<br/>Traceback:<br/>api-automation-repo/src/tests/api/loan_tape_entry_test.py:10: in &lt;module&gt;<br/>    from dateutil.parser import parse as parse_date<br/><span class="error">E   ModuleNotFoundError: No module named &#x27;dateutil&#x27;</span><br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">api-automation-repo/src/tests/web/platform_admin/loan_tape_entry_test.py::collect</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">ImportError while importing test module &#x27;/Users/Sapthagiri/Workspace/Automation repo/api-automation-repo/src/tests/web/platform_admin/loan_tape_entry_test.py&#x27;.<br/>Hint: make sure your test modules/packages have valid Python names.<br/>Traceback:<br/>api-automation-repo/src/tests/web/platform_admin/loan_tape_entry_test.py:1: in &lt;module&gt;<br/>    from pytz import timezone<br/><span class="error">E   ModuleNotFoundError: No module named &#x27;pytz&#x27;</span><br/></div></td></tr></tbody>
+      <tbody class="skipped results-table-row">
+        <tr>
+          <td class="col-result">Skipped</td>
+          <td class="col-name">api-automation-repo/src/tests/api/accounts_test.py::AccountsTest::test_partial_update_account_details_by_id::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 3.7.3 /Users/Sapthagiri/Workspace/venv/bin/python<br/>(&#x27;api-automation-repo/src/tests/api/accounts_test.py&#x27;, 225, &#x27;Skipped: unconditional skip&#x27;)<br/></div></td></tr></tbody>
+      <tbody class="skipped results-table-row">
+        <tr>
+          <td class="col-result">Skipped</td>
+          <td class="col-name">api-automation-repo/src/tests/api/accounts_test.py::AccountsTest::test_update_account_details_by_id::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] darwin -- Python 3.7.3 /Users/Sapthagiri/Workspace/venv/bin/python<br/>(&#x27;api-automation-repo/src/tests/api/accounts_test.py&#x27;, 125, &#x27;Skipped: unconditional skip&#x27;)<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">api-automation-repo/src/tests/api/accounts_test.py::AccountsTest::test_get_account_details_by_invalid_id</td>
+          <td class="col-duration">43.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>INFO:src.tests.api.accounts_test:STG
+INFO:src.tests.api.accounts_test:{&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO:src.tests.api.accounts_test:Desktop Test Target
+INFO:src.helpers.api.user_helper:create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706918/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_xwiijldmdc@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;f379df22-6872-47ad-bdeb-cbfc0c08f367&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706918/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706918/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706918/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706918/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706918/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706918/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706918/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706918/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706918/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:07:36.077066Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706918/cashout_available/&#x27;}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.user_helper:create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302537/&#x27;, &#x27;name&#x27;: &#x27;djjlutlioc Inc&#x27;, &#x27;company_information&#x27;: {&#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;business_name&#x27;: &#x27;djjlutlioc Inc&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_xwiijldmdc@qwil-team.m8r.co&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328613/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302537/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.accounts_helper:expected: HTTPStatus.NOT_FOUND response:404
+INFO:src.tests.api.accounts_test:/Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_get_account_details_by_invalid_id.png
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     src.tests.api.accounts_test:base_test.py:26 STG
+INFO     src.tests.api.accounts_test:base_test.py:32 {&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO     src.tests.api.accounts_test:base_test.py:52 Desktop Test Target
+INFO     src.helpers.api.user_helper:user_helper.py:70 create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706918/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_xwiijldmdc@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;f379df22-6872-47ad-bdeb-cbfc0c08f367&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706918/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706918/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706918/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706918/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706918/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706918/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706918/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706918/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706918/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:07:36.077066Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706918/cashout_available/&#x27;}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.user_helper:user_helper.py:420 create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302537/&#x27;, &#x27;name&#x27;: &#x27;djjlutlioc Inc&#x27;, &#x27;company_information&#x27;: {&#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;business_name&#x27;: &#x27;djjlutlioc Inc&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_xwiijldmdc@qwil-team.m8r.co&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:63 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:72 success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328613/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302537/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.accounts_helper:accounts_helper.py:50 expected: HTTPStatus.NOT_FOUND response:404
+INFO     src.tests.api.accounts_test:base_test.py:72 /Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_get_account_details_by_invalid_id.png<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">api-automation-repo/src/tests/api/accounts_test.py::AccountsTest::test_create_account_authorize_debit</td>
+          <td class="col-duration">43.72</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>INFO:src.tests.api.accounts_test:STG
+INFO:src.tests.api.accounts_test:{&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO:src.tests.api.accounts_test:Desktop Test Target
+INFO:src.helpers.api.user_helper:create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706919/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_rnoorjiuop@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;34906ec0-3204-412f-9e41-de8c268bb094&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706919/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706919/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706919/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706919/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706919/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706919/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706919/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706919/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706919/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:07:37.422924Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706919/cashout_available/&#x27;}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.user_helper:create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302539/&#x27;, &#x27;name&#x27;: &#x27;lhuwnkeroo Inc&#x27;, &#x27;company_information&#x27;: {&#x27;business_name&#x27;: &#x27;lhuwnkeroo Inc&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_rnoorjiuop@qwil-team.m8r.co&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;}}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328614/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302539/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.accounts_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.accounts_helper:create_accounts_authorize_debit success: &lt;Response [201]&gt;
+INFO:src.tests.api.accounts_test:/Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_create_account_authorize_debit.png
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     src.tests.api.accounts_test:base_test.py:26 STG
+INFO     src.tests.api.accounts_test:base_test.py:32 {&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO     src.tests.api.accounts_test:base_test.py:52 Desktop Test Target
+INFO     src.helpers.api.user_helper:user_helper.py:70 create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706919/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_rnoorjiuop@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;34906ec0-3204-412f-9e41-de8c268bb094&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706919/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706919/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706919/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706919/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706919/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706919/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706919/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706919/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706919/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:07:37.422924Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706919/cashout_available/&#x27;}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.user_helper:user_helper.py:420 create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302539/&#x27;, &#x27;name&#x27;: &#x27;lhuwnkeroo Inc&#x27;, &#x27;company_information&#x27;: {&#x27;business_name&#x27;: &#x27;lhuwnkeroo Inc&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_rnoorjiuop@qwil-team.m8r.co&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;}}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:63 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:72 success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328614/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302539/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.accounts_helper:accounts_helper.py:344 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.accounts_helper:accounts_helper.py:350 create_accounts_authorize_debit success: &lt;Response [201]&gt;
+INFO     src.tests.api.accounts_test:base_test.py:72 /Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_create_account_authorize_debit.png<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">api-automation-repo/src/tests/api/accounts_test.py::AccountsTest::test_create_account_authorize_debit_by_invalid_id</td>
+          <td class="col-duration">43.93</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>INFO:src.tests.api.accounts_test:STG
+INFO:src.tests.api.accounts_test:{&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO:src.tests.api.accounts_test:Desktop Test Target
+INFO:src.helpers.api.user_helper:create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706921/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_pouqkdbwia@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;f30a88c0-da7d-4f5e-bb7a-38ee123f0b79&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706921/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706921/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706921/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706921/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706921/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706921/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706921/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706921/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706921/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:07:37.445015Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706921/cashout_available/&#x27;}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.user_helper:create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302538/&#x27;, &#x27;name&#x27;: &#x27;xohokmdxap Inc&#x27;, &#x27;company_information&#x27;: {&#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;business_name&#x27;: &#x27;xohokmdxap Inc&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_pouqkdbwia@qwil-team.m8r.co&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328615/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302538/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.accounts_helper:expected: HTTPStatus.NOT_FOUND response:404
+INFO:src.tests.api.accounts_test:/Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_create_account_authorize_debit_by_invalid_id.png
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     src.tests.api.accounts_test:base_test.py:26 STG
+INFO     src.tests.api.accounts_test:base_test.py:32 {&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO     src.tests.api.accounts_test:base_test.py:52 Desktop Test Target
+INFO     src.helpers.api.user_helper:user_helper.py:70 create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706921/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_pouqkdbwia@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;f30a88c0-da7d-4f5e-bb7a-38ee123f0b79&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706921/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706921/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706921/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706921/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706921/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706921/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706921/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706921/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706921/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:07:37.445015Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706921/cashout_available/&#x27;}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.user_helper:user_helper.py:420 create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302538/&#x27;, &#x27;name&#x27;: &#x27;xohokmdxap Inc&#x27;, &#x27;company_information&#x27;: {&#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;business_name&#x27;: &#x27;xohokmdxap Inc&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_pouqkdbwia@qwil-team.m8r.co&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:63 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:72 success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328615/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302538/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.accounts_helper:accounts_helper.py:344 expected: HTTPStatus.NOT_FOUND response:404
+INFO     src.tests.api.accounts_test:base_test.py:72 /Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_create_account_authorize_debit_by_invalid_id.png<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">api-automation-repo/src/tests/api/accounts_test.py::AccountsTest::test_get_account_details_by_id</td>
+          <td class="col-duration">44.81</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>INFO:src.tests.api.accounts_test:STG
+INFO:src.tests.api.accounts_test:{&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO:src.tests.api.accounts_test:Desktop Test Target
+INFO:src.helpers.api.user_helper:create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706920/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_jkpssrtjne@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;2e902a13-36d2-440c-97dc-4b08f0f04aa4&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706920/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706920/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706920/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706920/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706920/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706920/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706920/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706920/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706920/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:07:37.417930Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706920/cashout_available/&#x27;}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.user_helper:create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302540/&#x27;, &#x27;name&#x27;: &#x27;eperpfebzk Inc&#x27;, &#x27;company_information&#x27;: {&#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;business_name&#x27;: &#x27;eperpfebzk Inc&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_jkpssrtjne@qwil-team.m8r.co&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328616/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302540/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.accounts_helper:expected: HTTPStatus.OK response:200
+INFO:src.helpers.api.accounts_helper:success: {&#x27;account_holder_name&#x27;: None, &#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328616/&#x27;, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302540/&#x27;, &#x27;user&#x27;: None, &#x27;balance&#x27;: &#x27;https://staging.qwil.co/accounts/328616/balance/&#x27;, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:08:03.901240Z&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;regulatory_information&#x27;: None, &#x27;is_paypal&#x27;: False, &#x27;is_mychoice&#x27;: False, &#x27;mychoice_user_id&#x27;: None, &#x27;mychoice_card_id&#x27;: None, &#x27;actions&#x27;: {&#x27;authorize_debit&#x27;: &#x27;https://staging.qwil.co/accounts/328616/authorize_debit/&#x27;}, &#x27;is_debit_authorized&#x27;: False, &#x27;batch_target_owner&#x27;: None}
+INFO:src.tests.api.accounts_test:/Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_get_account_details_by_id.png
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     src.tests.api.accounts_test:base_test.py:26 STG
+INFO     src.tests.api.accounts_test:base_test.py:32 {&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO     src.tests.api.accounts_test:base_test.py:52 Desktop Test Target
+INFO     src.helpers.api.user_helper:user_helper.py:70 create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706920/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_jkpssrtjne@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;2e902a13-36d2-440c-97dc-4b08f0f04aa4&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706920/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706920/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706920/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706920/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706920/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706920/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706920/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706920/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706920/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:07:37.417930Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706920/cashout_available/&#x27;}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.user_helper:user_helper.py:420 create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302540/&#x27;, &#x27;name&#x27;: &#x27;eperpfebzk Inc&#x27;, &#x27;company_information&#x27;: {&#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;business_name&#x27;: &#x27;eperpfebzk Inc&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_jkpssrtjne@qwil-team.m8r.co&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:63 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:72 success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328616/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302540/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.accounts_helper:accounts_helper.py:50 expected: HTTPStatus.OK response:200
+INFO     src.helpers.api.accounts_helper:accounts_helper.py:56 success: {&#x27;account_holder_name&#x27;: None, &#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328616/&#x27;, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302540/&#x27;, &#x27;user&#x27;: None, &#x27;balance&#x27;: &#x27;https://staging.qwil.co/accounts/328616/balance/&#x27;, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:08:03.901240Z&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;regulatory_information&#x27;: None, &#x27;is_paypal&#x27;: False, &#x27;is_mychoice&#x27;: False, &#x27;mychoice_user_id&#x27;: None, &#x27;mychoice_card_id&#x27;: None, &#x27;actions&#x27;: {&#x27;authorize_debit&#x27;: &#x27;https://staging.qwil.co/accounts/328616/authorize_debit/&#x27;}, &#x27;is_debit_authorized&#x27;: False, &#x27;batch_target_owner&#x27;: None}
+INFO     src.tests.api.accounts_test:base_test.py:72 /Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_get_account_details_by_id.png<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">api-automation-repo/src/tests/api/accounts_test.py::AccountsTest::test_update_account_details_by_invalid_id</td>
+          <td class="col-duration">43.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>INFO:src.tests.api.accounts_test:STG
+INFO:src.tests.api.accounts_test:{&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO:src.tests.api.accounts_test:Desktop Test Target
+INFO:src.helpers.api.user_helper:create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706923/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_xjyghwkplx@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;2b07c819-dbe4-46be-99df-7ad169854e0c&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706923/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706923/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706923/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706923/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706923/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706923/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706923/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706923/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706923/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:08:19.056034Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706923/cashout_available/&#x27;}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.user_helper:create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302542/&#x27;, &#x27;name&#x27;: &#x27;vpsvewiuaw Inc&#x27;, &#x27;company_information&#x27;: {&#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_xjyghwkplx@qwil-team.m8r.co&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;business_name&#x27;: &#x27;vpsvewiuaw Inc&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;}}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328617/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302542/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.accounts_helper:expected: HTTPStatus.NOT_FOUND response:404
+INFO:src.tests.api.accounts_test:/Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_update_account_details_by_invalid_id.png
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     src.tests.api.accounts_test:base_test.py:26 STG
+INFO     src.tests.api.accounts_test:base_test.py:32 {&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO     src.tests.api.accounts_test:base_test.py:52 Desktop Test Target
+INFO     src.helpers.api.user_helper:user_helper.py:70 create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706923/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_xjyghwkplx@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;2b07c819-dbe4-46be-99df-7ad169854e0c&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706923/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706923/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706923/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706923/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706923/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706923/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706923/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706923/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706923/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:08:19.056034Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706923/cashout_available/&#x27;}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.user_helper:user_helper.py:420 create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302542/&#x27;, &#x27;name&#x27;: &#x27;vpsvewiuaw Inc&#x27;, &#x27;company_information&#x27;: {&#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_xjyghwkplx@qwil-team.m8r.co&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;business_name&#x27;: &#x27;vpsvewiuaw Inc&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;}}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:63 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:72 success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328617/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302542/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.accounts_helper:accounts_helper.py:110 expected: HTTPStatus.NOT_FOUND response:404
+INFO     src.tests.api.accounts_test:base_test.py:72 /Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_update_account_details_by_invalid_id.png<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">api-automation-repo/src/tests/api/accounts_test.py::AccountsTest::test_partial_update_account_details_by_invalid_id</td>
+          <td class="col-duration">42.28</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>INFO:src.tests.api.accounts_test:STG
+INFO:src.tests.api.accounts_test:{&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO:src.tests.api.accounts_test:Desktop Test Target
+INFO:src.helpers.api.user_helper:create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706924/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_sluzfszjhs@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;8bd3f4b2-97a5-4c4b-a1dc-421a5cc3400c&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706924/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706924/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706924/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706924/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706924/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706924/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706924/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706924/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706924/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:08:19.336850Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706924/cashout_available/&#x27;}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.user_helper:create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302543/&#x27;, &#x27;name&#x27;: &#x27;yuiaogdujw Inc&#x27;, &#x27;company_information&#x27;: {&#x27;email&#x27;: &#x27;qwil_payor_sluzfszjhs@qwil-team.m8r.co&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;business_name&#x27;: &#x27;yuiaogdujw Inc&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.platform_helper:expected: HTTPStatus.CREATED response:201
+INFO:src.helpers.api.platform_helper:success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328618/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302543/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO:src.helpers.api.auth_helper:200
+INFO:src.helpers.api.accounts_helper:expected: HTTPStatus.NOT_FOUND response:404
+INFO:src.tests.api.accounts_test:/Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_partial_update_account_details_by_invalid_id.png
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     src.tests.api.accounts_test:base_test.py:26 STG
+INFO     src.tests.api.accounts_test:base_test.py:32 {&#x27;platform&#x27;: &#x27;OS X 10.12&#x27;, &#x27;screenResolution&#x27;: &#x27;1600x1200&#x27;, &#x27;browserName&#x27;: &#x27;chrome&#x27;, &#x27;version&#x27;: &#x27;78.0&#x27;, &#x27;chromeOptions&#x27;: {&#x27;args&#x27;: [&#x27;start-maximized&#x27;]}}
+INFO     src.tests.api.accounts_test:base_test.py:52 Desktop Test Target
+INFO     src.helpers.api.user_helper:user_helper.py:70 create_user: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/users/706924/&#x27;, &#x27;email&#x27;: &#x27;qwil_payor_sluzfszjhs@qwil-team.m8r.co&#x27;, &#x27;name&#x27;: &#x27;Qwil Payor&#x27;, &#x27;first_name&#x27;: &#x27;Qwil&#x27;, &#x27;last_name&#x27;: &#x27;Payor&#x27;, &#x27;business_name&#x27;: &#x27;&#x27;, &#x27;contractor_type&#x27;: &#x27;INDIVIDUAL&#x27;, &#x27;default_account&#x27;: None, &#x27;tax_savings_account&#x27;: None, &#x27;tax_savings_percent&#x27;: &#x27;0.00&#x27;, &#x27;use_plaid&#x27;: True, &#x27;use_income_requests&#x27;: False, &#x27;use_tax_savings&#x27;: True, &#x27;is_auto_cashout_enabled&#x27;: False, &#x27;external_id&#x27;: &#x27;&#x27;, &#x27;is_v2_viewed&#x27;: True, &#x27;is_admin_welcome_viewed&#x27;: True, &#x27;icvalidation_status&#x27;: &#x27;NOT_CHECKED&#x27;, &#x27;needs_user_information_confirmation&#x27;: False, &#x27;uuid&#x27;: &#x27;8bd3f4b2-97a5-4c4b-a1dc-421a5cc3400c&#x27;, &#x27;income&#x27;: &#x27;https://staging.qwil.co/users/706924/income/&#x27;, &#x27;cashouts&#x27;: &#x27;https://staging.qwil.co/users/706924/cashouts/&#x27;, &#x27;receivables&#x27;: &#x27;https://staging.qwil.co/users/706924/receivables/&#x27;, &#x27;accounts&#x27;: &#x27;https://staging.qwil.co/users/706924/accounts/&#x27;, &#x27;is_payable&#x27;: False, &#x27;cashout_available&#x27;: 0.0, &#x27;unpaid_income&#x27;: 0, &#x27;tax_savings&#x27;: &#x27;https://staging.qwil.co/users/706924/tax_savings/&#x27;, &#x27;platform&#x27;: None, &#x27;platform_summary&#x27;: None, &#x27;platform_membership_requests&#x27;: &#x27;https://staging.qwil.co/users/706924/platform_membership_requests/&#x27;, &#x27;income_requests&#x27;: &#x27;https://staging.qwil.co/users/706924/income_requests/&#x27;, &#x27;is_platform_admin&#x27;: False, &#x27;has_password&#x27;: True, &#x27;personal_information&#x27;: {&#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;date_of_birth&#x27;: &#x27;1990-01-01&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}, &#x27;managers&#x27;: [], &#x27;administered_platforms&#x27;: &#x27;https://staging.qwil.co/users/706924/administered_platforms/&#x27;, &#x27;feature_flags&#x27;: [&#x27;tax_savings&#x27;, &#x27;international_account_flow_v2_enabled&#x27;, &#x27;platform_account_authorization&#x27;], &#x27;income_summary&#x27;: &#x27;https://staging.qwil.co/users/706924/income_summary/&#x27;, &#x27;kyc_status&#x27;: &#x27;AUTO_APPROVED&#x27;, &#x27;current_tax_year_address_confirmation&#x27;: None, &#x27;created_timestamp&#x27;: &#x27;2020-04-01T07:08:19.336850Z&#x27;, &#x27;calculate_cashout_available&#x27;: &#x27;https://staging.qwil.co/users/706924/cashout_available/&#x27;}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.user_helper:user_helper.py:420 create_new_platform: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/platforms/302543/&#x27;, &#x27;name&#x27;: &#x27;yuiaogdujw Inc&#x27;, &#x27;company_information&#x27;: {&#x27;email&#x27;: &#x27;qwil_payor_sluzfszjhs@qwil-team.m8r.co&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;business_name&#x27;: &#x27;yuiaogdujw Inc&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_country&#x27;: &#x27;US&#x27;, &#x27;tax_id_type&#x27;: &#x27;SSN&#x27;, &#x27;entity_type&#x27;: &#x27;BUSINESS&#x27;, &#x27;phone_number&#x27;: &#x27;465766876778&#x27;, &#x27;duns_number&#x27;: &#x27;123456789&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;tax_id_number&#x27;: &#x27;*********&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_state&#x27;: &#x27;CA&#x27;}}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.platform_helper:platform_helper.py:63 expected: HTTPStatus.CREATED response:201
+INFO     src.helpers.api.platform_helper:platform_helper.py:72 success: {&#x27;url&#x27;: &#x27;https://staging.qwil.co/accounts/328618/&#x27;, &#x27;owner&#x27;: &#x27;https://staging.qwil.co/platforms/302543/&#x27;, &#x27;user&#x27;: None, &#x27;deleted&#x27;: False, &#x27;disabled&#x27;: False, &#x27;type&#x27;: &#x27;BANK&#x27;, &#x27;account_number&#x27;: &#x27;********9012&#x27;, &#x27;routing_number&#x27;: &#x27;021000021&#x27;, &#x27;swift_code&#x27;: &#x27;&#x27;, &#x27;iban&#x27;: &#x27;&#x27;, &#x27;local_account_number&#x27;: &#x27;****5678&#x27;, &#x27;local_routing_number&#x27;: &#x27;123456789&#x27;, &#x27;name&#x27;: &#x27;HSBC&#x27;, &#x27;is_tax_savings&#x27;: True, &#x27;currency&#x27;: &#x27;USD&#x27;, &#x27;country&#x27;: &#x27;US&#x27;, &#x27;branch_information&#x27;: {&#x27;institution_name&#x27;: &#x27;HSBC&#x27;, &#x27;address&#x27;: &#x27;1 Market Street&#x27;, &#x27;address_line_2&#x27;: &#x27;Old Toronto&#x27;, &#x27;address_city&#x27;: &#x27;mountain view&#x27;, &#x27;address_state&#x27;: &#x27;AK&#x27;, &#x27;address_zip_code&#x27;: &#x27;94043&#x27;, &#x27;address_country&#x27;: &#x27;AF&#x27;}, &#x27;regulatory_information&#x27;: None}
+INFO     src.helpers.api.auth_helper:auth_helper.py:47 200
+INFO     src.helpers.api.accounts_helper:accounts_helper.py:170 expected: HTTPStatus.NOT_FOUND response:404
+INFO     src.tests.api.accounts_test:base_test.py:72 /Users/Sapthagiri/Workspace/Automation repo/screenshots/src.tests.api.accounts_test.AccountsTest.test_partial_update_account_details_by_invalid_id.png<br/></div></td></tr></tbody></table></body></html>
